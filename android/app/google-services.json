@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "8619244795",
+    "project_id": "app-gerenciador-de-financas",
+    "storage_bucket": "app-gerenciador-de-financas.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:8619244795:android:c618fe6c53d3006c4a845e",
+        "android_client_info": {
+          "package_name": "com.example.tcc2025_leanatan"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGnY3G4_G-6dO-ADUitPY-zyrmxHf5Ixk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
