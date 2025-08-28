@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "8619244795",
+    "firebase_url": "https://app-gerenciador-de-financas-default-rtdb.firebaseio.com",
     "project_id": "app-gerenciador-de-financas",
     "storage_bucket": "app-gerenciador-de-financas.firebasestorage.app"
   },

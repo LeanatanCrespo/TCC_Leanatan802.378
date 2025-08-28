@@ -38,10 +38,12 @@ dependencies:
   cloud_firestore: ^5.6.8
   firebase_auth: ^5.5.4
   flutter_secure_storage: ^9.1.0
-  uuid: ^4.5.1
+  uuid: ^4.2.2
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -52,6 +54,7 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   mockito: ^5.4.6
   firebase_core_platform_interface: ^5.4.0
+  
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

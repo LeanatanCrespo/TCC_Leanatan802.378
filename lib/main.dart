@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'views/home_view.dart';
+import 'package:tcc2025_leanatan/firebase_options.dart';
+import 'package:tcc2025_leanatan/views/login_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+
+  // Inicializa Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MyApp());
 }
 
@@ -14,11 +20,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Gerenciador Financeiro',
+      title: 'TCC 2025',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        primarySwatch: Colors.blue,
       ),
-      home: const HomeView(),
+      debugShowCheckedModeBanner: false,
+      home: const LoginView(), // 👈 Tela inicial
     );
   }
 }
+
