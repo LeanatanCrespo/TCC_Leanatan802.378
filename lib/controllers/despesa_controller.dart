@@ -4,7 +4,6 @@ import '../services/despesa_service.dart';
 class DespesaController {
   final DespesaService _service = DespesaService();
 
-  // CRUD
   Future<void> adicionarDespesa(Despesa despesa) => _service.adicionarDespesa(despesa);
 
   Stream<List<Despesa>> listarDespesas() => _service.listarDespesas();

@@ -1,32 +1,44 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/receita.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/receita.dart';
 
 class ReceitaService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String? uid = FirebaseAuth.instance.currentUser?.uid;
 
-  CollectionReference get _receitasRef =>
-      _firestore.collection('usuarios').doc(uid).collection('receitas');
+  CollectionReference<Map<String, dynamic>> _ref(String uid) =>
+      _firestore.collection('usuarios').doc(uid).collection('receitas'); 
 
-  // Create
-  Future<void> adicionarReceita(Receita receita) async {
-    await _receitasRef.doc(receita.id).set(receita.toMap());
+  Future<void> adicionarReceita(Receita receita) async { 
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw Exception('Usuário não autenticado');
+
+    final data = receita.toMap()..['usuarioId'] = uid;
+    await _ref(uid).doc(receita.id).set(data);
   }
 
-  // Read all (Stream)
-  Stream<List<Receita>> listarReceitas() {
-    return _receitasRef.snapshots().map((snapshot) =>
-        snapshot.docs.map((doc) => Receita.fromMap(doc.data() as Map<String, dynamic>)).toList());
+  Stream<List<Receita>> listarReceitas() { 
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const Stream<List<Receita>>.empty();
+    }
+    return _ref(uid)
+        .orderBy('dataCriacao', descending: true)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => Receita.fromMap(d.data())).toList()); 
   }
 
-  // Update
-  Future<void> atualizarReceita(Receita receita) async {
-    await _receitasRef.doc(receita.id).update(receita.toMap());
+  Future<void> atualizarReceita(Receita receita) async { 
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw Exception('Usuário não autenticado');
+
+    final data = receita.toMap()..['usuarioId'] = uid;
+    await _ref(uid).doc(receita.id).update(data);
   }
 
-  // Delete
-  Future<void> deletarReceita(String id) async {
-    await _receitasRef.doc(id).delete();
+  Future<void> deletarReceita(String id) async { 
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw Exception('Usuário não autenticado');
+    await _ref(uid).doc(id).delete();
   }
 }

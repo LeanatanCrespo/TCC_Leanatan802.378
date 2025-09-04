@@ -3,9 +3,9 @@ class Despesa {
   final String usuarioId;
   final String nome;
   final double valor;
-  final String periodo;
-  final String prioridade;
-  final String tipo;
+  final String? periodo;
+  final int? prioridade;
+  final String? tipo;
   final DateTime dataCriacao;
 
   Despesa({
@@ -13,9 +13,9 @@ class Despesa {
     required this.usuarioId,
     required this.nome,
     required this.valor,
-    required this.periodo,
-    required this.prioridade,
-    required this.tipo,
+    this.periodo,
+    this.prioridade,
+    this.tipo,
     required this.dataCriacao,
   });
 

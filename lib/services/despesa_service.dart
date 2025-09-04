@@ -1,32 +1,44 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/despesa.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/despesa.dart';
 
 class DespesaService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String? uid = FirebaseAuth.instance.currentUser?.uid;
 
-  CollectionReference get _despesasRef =>
+  CollectionReference<Map<String, dynamic>> _ref(String uid) =>
       _firestore.collection('usuarios').doc(uid).collection('despesas');
 
-  // Create
   Future<void> adicionarDespesa(Despesa despesa) async {
-    await _despesasRef.doc(despesa.id).set(despesa.toMap());
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw Exception('Usuário não autenticado');
+
+    final data = despesa.toMap()..['usuarioId'] = uid;
+    await _ref(uid).doc(despesa.id).set(data);
   }
 
-  // Read all (Stream)
   Stream<List<Despesa>> listarDespesas() {
-    return _despesasRef.snapshots().map((snapshot) =>
-        snapshot.docs.map((doc) => Despesa.fromMap(doc.data() as Map<String, dynamic>)).toList());
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const Stream<List<Despesa>>.empty();
+    }
+    return _ref(uid)
+        .orderBy('dataCriacao', descending: true)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => Despesa.fromMap(d.data())).toList());
   }
 
-  // Update
   Future<void> atualizarDespesa(Despesa despesa) async {
-    await _despesasRef.doc(despesa.id).update(despesa.toMap());
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw Exception('Usuário não autenticado');
+
+    final data = despesa.toMap()..['usuarioId'] = uid;
+    await _ref(uid).doc(despesa.id).update(data);
   }
 
-  // Delete
   Future<void> deletarDespesa(String id) async {
-    await _despesasRef.doc(id).delete();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw Exception('Usuário não autenticado');
+    await _ref(uid).doc(id).delete();
   }
 }

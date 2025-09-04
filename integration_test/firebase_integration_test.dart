@@ -19,7 +19,7 @@ void main() {
       nome: 'Salário',
       valor: 3000.0,
       periodo: 'Mensal',
-      prioridade: 'Alta',
+      prioridade: 3,
       tipo: 'Fixa',
       dataCriacao: DateTime.now(),
     );

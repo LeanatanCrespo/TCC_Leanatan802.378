@@ -9,7 +9,7 @@ void main() {
       nome: 'Aluguel',
       valor: 1500.00,
       periodo: 'Mensal',
-      prioridade: 'Alta',
+      prioridade: 3,
       tipo: 'Fixa',
       dataCriacao: DateTime.parse('2024-06-01T10:00:00'),
     );

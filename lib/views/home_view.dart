@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:tcc2025_leanatan/views/perfil_view.dart';
 import 'receita_view.dart';
 import 'despesa_view.dart';
 import 'lembretes_view.dart';
+import 'pesquisa_view.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({Key? key}) : super(key: key);
@@ -18,7 +20,8 @@ class _HomeViewState extends State<HomeView> {
     const ReceitasView(),
     const DespesasView(),
     const LembretesView(),
-    const Center(child: Text('Perfil')), // Futuro Perfil
+    const PerfilView(),
+    const PesquisaView(),
   ];
 
   void _selecionarPagina(int index) {
@@ -63,6 +66,11 @@ class _HomeViewState extends State<HomeView> {
               leading: const Icon(Icons.person),
               title: const Text('Perfil'),
               onTap: () => _selecionarPagina(4),
+            ),
+            ListTile(
+              leading: const Icon(Icons.circle),
+              title: const Text('Pesquisar'),
+              onTap: () => _selecionarPagina(5),
             ),
           ],
         ),

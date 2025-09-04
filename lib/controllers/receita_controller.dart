@@ -4,7 +4,6 @@ import '../services/receita_service.dart';
 class ReceitaController {
   final ReceitaService _service = ReceitaService();
 
-  // CRUD
   Future<void> adicionarReceita(Receita receita) => _service.adicionarReceita(receita);
 
   Stream<List<Receita>> listarReceitas() => _service.listarReceitas();

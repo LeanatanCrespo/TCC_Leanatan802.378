@@ -6,7 +6,6 @@ import 'package:tcc2025_leanatan/views/login_view.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializa Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -25,7 +24,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       debugShowCheckedModeBanner: false,
-      home: const LoginView(), // 👈 Tela inicial
+      home: const LoginView(),
     );
   }
 }

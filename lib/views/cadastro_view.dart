@@ -27,7 +27,7 @@ class _CadastroViewState extends State<CadastroView> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cadastro realizado com sucesso!')),
         );
-        Navigator.pop(context); // Volta para tela de login
+        Navigator.pop(context);
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString())),
