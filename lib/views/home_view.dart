@@ -4,6 +4,7 @@ import 'receita_view.dart';
 import 'despesa_view.dart';
 import 'lembretes_view.dart';
 import 'pesquisa_view.dart';
+import 'relatorio_view.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({Key? key}) : super(key: key);
@@ -22,6 +23,7 @@ class _HomeViewState extends State<HomeView> {
     const LembretesView(),
     const PerfilView(),
     const PesquisaView(),
+    const RelatorioView(),
   ];
 
   void _selecionarPagina(int index) {
@@ -71,6 +73,11 @@ class _HomeViewState extends State<HomeView> {
               leading: const Icon(Icons.circle),
               title: const Text('Pesquisar'),
               onTap: () => _selecionarPagina(5),
+            ),
+            ListTile(
+              leading: const Icon(Icons.circle),
+              title: const Text('Relatorio'),
+              onTap: () => _selecionarPagina(6),
             ),
           ],
         ),
