@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/relatorio.dart';
 import '../services/relatorio_service.dart';
+import 'grafico_view.dart'; 
 
 class RelatorioView extends StatefulWidget {
   const RelatorioView({Key? key}) : super(key: key);
@@ -33,6 +34,20 @@ class _RelatorioViewState extends State<RelatorioView> {
     }
   }
 
+  void _abrirGrafico(bool anual) {
+    if (_relatorio != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => GraficoView(
+            relatorio: _relatorio!,
+            anual: anual,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -53,25 +68,61 @@ class _RelatorioViewState extends State<RelatorioView> {
             ),
             Row(
               children: [
-                ElevatedButton(onPressed: _gerarMensal, child: const Text("Gerar Mensal")),
+                ElevatedButton(
+                  onPressed: _gerarMensal,
+                  child: const Text("Gerar Mensal"),
+                ),
                 const SizedBox(width: 10),
-                ElevatedButton(onPressed: _gerarAnual, child: const Text("Gerar Anual")),
+                ElevatedButton(
+                  onPressed: _gerarAnual,
+                  child: const Text("Gerar Anual"),
+                ),
               ],
             ),
             const SizedBox(height: 20),
             if (_relatorio != null)
               Expanded(
-                child: ListView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Período: ${_relatorio!.primeiraData} - ${_relatorio!.ultimaData}"),
+                    Text(
+                      "Período: ${_relatorio!.primeiraData} - ${_relatorio!.ultimaData}",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     const SizedBox(height: 10),
                     Text("Receitas:"),
-                    ..._relatorio!.receitas.map((r) => Text(" - ${r.nome}: R\$ ${r.valor}")),
-                    const SizedBox(height: 10),
-                    Text("Despesas:"),
-                    ..._relatorio!.despesas.map((d) => Text(" - ${d.nome}: R\$ ${d.valor}")),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          ..._relatorio!.receitas.map(
+                            (r) => Text(" - ${r.nome}: R\$ ${r.valor}"),
+                          ),
+                          const SizedBox(height: 10),
+                          Text("Despesas:"),
+                          ..._relatorio!.despesas.map(
+                            (d) => Text(" - ${d.nome}: R\$ ${d.valor}"),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            "💰 Valor Final: R\$ ${_relatorio!.valorFinal.toStringAsFixed(2)}",
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 20),
-                    Text("💰 Valor Final: R\$ ${_relatorio!.valorFinal.toStringAsFixed(2)}"),
+                    // Botão para gráfico
+                    Center(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          // verifica se foi gerado anual ou mensal
+                          final anual = _mesController.text.trim().isEmpty;
+                          _abrirGrafico(anual);
+                        },
+                        icon: const Icon(Icons.pie_chart),
+                        label: const Text("Ver Gráfico"),
+                      ),
+                    ),
                   ],
                 ),
               ),

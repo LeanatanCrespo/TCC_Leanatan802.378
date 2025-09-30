@@ -21,6 +21,8 @@ class _PesquisaViewState extends State<PesquisaView> {
   String filtroTipoLancamento = 'Todos'; // Todos | Despesa | Receita
   String filtroTipo = ''; // Tipo digitado
   String filtroPrioridade = ''; // Prioridade digitada
+  DateTime? filtroDataInicio; // Data inicial opcional
+  DateTime? filtroDataFim;    // Data final opcional
 
   @override
   void dispose() {
@@ -28,10 +30,32 @@ class _PesquisaViewState extends State<PesquisaView> {
     super.dispose();
   }
 
+  Future<void> _selecionarDataInicio() async {
+    final data = await showDatePicker(
+      context: context,
+      initialDate: filtroDataInicio ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (data != null) {
+      setState(() => filtroDataInicio = data);
+    }
+  }
+
+  Future<void> _selecionarDataFim() async {
+    final data = await showDatePicker(
+      context: context,
+      initialDate: filtroDataFim ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (data != null) {
+      setState(() => filtroDataFim = data);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Cada setState (ao alterar filtros) vai reconstruir e recriar a stream aqui,
-    // o StreamBuilder cancela a subscription anterior automaticamente.
     return Scaffold(
       appBar: AppBar(title: const Text('Pesquisar Lançamentos')),
       body: Padding(
@@ -85,7 +109,33 @@ class _PesquisaViewState extends State<PesquisaView> {
             ),
             const SizedBox(height: 12),
 
-            // Lista combinada (stream criada por _combineStreams)
+            // Filtros de Data
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _selecionarDataInicio,
+                    icon: const Icon(Icons.date_range),
+                    label: Text(filtroDataInicio == null
+                        ? "Data Início"
+                        : "${filtroDataInicio!.day}/${filtroDataInicio!.month}/${filtroDataInicio!.year}"),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _selecionarDataFim,
+                    icon: const Icon(Icons.date_range),
+                    label: Text(filtroDataFim == null
+                        ? "Data Fim"
+                        : "${filtroDataFim!.day}/${filtroDataFim!.month}/${filtroDataFim!.year}"),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Lista combinada
             Expanded(
               child: StreamBuilder<List<dynamic>>(
                 stream: _combineStreams(),
@@ -139,13 +189,10 @@ class _PesquisaViewState extends State<PesquisaView> {
   }
 
   /// Combina os streams de despesas e receitas e aplica filtros.
-  /// Observação: a stream é recriada a cada build (quando filtros mudam),
-  /// o StreamBuilder cancela a subscription anterior automaticamente.
   Stream<List<dynamic>> _combineStreams() {
     final despesasStream = _despesaController.listarDespesas();
     final receitasStream = _receitaController.listarReceitas();
 
-    // StreamController que emite a lista combinada quando qualquer um dos streams atualizar.
     final controller = StreamController<List<dynamic>>();
 
     List<Despesa> latestDespesas = [];
@@ -171,6 +218,7 @@ class _PesquisaViewState extends State<PesquisaView> {
         final valor = item.valor.toString();
         final tipo = ((item.tipo ?? '') as String).toLowerCase();
         final prioridade = (item.prioridade ?? '').toString();
+        final data = item.dataCriacao as DateTime;
 
         final matchPesquisa =
             pesquisa.isEmpty || nome.contains(pesquisa) || valor.contains(pesquisa);
@@ -179,19 +227,19 @@ class _PesquisaViewState extends State<PesquisaView> {
 
         final matchPrioridade = filtroPrioridade.isEmpty || prioridade == filtroPrioridade;
 
-        return matchPesquisa && matchTipo && matchPrioridade;
+        final matchData = (filtroDataInicio == null || data.isAfter(filtroDataInicio!) || data.isAtSameMomentAs(filtroDataInicio!)) &&
+                          (filtroDataFim == null || data.isBefore(filtroDataFim!) || data.isAtSameMomentAs(filtroDataFim!));
+
+        return matchPesquisa && matchTipo && matchPrioridade && matchData;
       }).toList();
 
-      // Ordenar por data de criação (desc)
       todos.sort((a, b) => b.dataCriacao.compareTo(a.dataCriacao));
 
-      // Emite a lista combinada
       if (!controller.isClosed) {
         controller.add(todos);
       }
     }
 
-    // Assina os dois streams
     subD = despesasStream.listen((d) {
       latestDespesas = d;
       emitCombined();
@@ -206,7 +254,6 @@ class _PesquisaViewState extends State<PesquisaView> {
       if (!controller.isClosed) controller.addError(e, s);
     });
 
-    // Ao cancelar o controller (quando StreamBuilder troca stream), cancelamos as subscriptions
     controller.onCancel = () async {
       await subD.cancel();
       await subR.cancel();

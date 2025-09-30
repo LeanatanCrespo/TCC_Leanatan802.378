@@ -40,6 +40,8 @@ dependencies:
   flutter_secure_storage: ^9.1.0
   uuid: ^4.2.2
   rxdart: ^0.27.7
+  table_calendar: ^3.0.9
+  fl_chart: ^0.68.0
 
 dev_dependencies:
   flutter_test:
