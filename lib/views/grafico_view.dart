@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/relatorio.dart';
-import '../models/receita.dart';
-import '../models/despesa.dart';
 
 class GraficoView extends StatelessWidget {
   final Relatorio relatorio;

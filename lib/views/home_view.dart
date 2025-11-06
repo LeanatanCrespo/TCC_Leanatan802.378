@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../controllers/receita_controller.dart';
+import '../controllers/despesa_controller.dart';
+import '../controllers/tipo_controller.dart';
+import '../controllers/periodo_controller.dart';
+import '../models/receita.dart';
+import '../models/despesa.dart';
+import '../models/tipo.dart';
+import '../models/periodo.dart';
 
 import 'perfil_view.dart';
-import 'receita_view.dart';
-import 'despesa_view.dart';
+import 'receita_form_view.dart';
+import 'despesa_form_view.dart';
 import 'lembretes_view.dart';
 import 'pesquisa_view.dart';
 import 'relatorio_view.dart';
+import 'tipos_view.dart';
+import 'periodos_view.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({Key? key}) : super(key: key);
@@ -17,177 +27,401 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
-  int _paginaAtual = 0;
+  final ReceitaController _receitaController = ReceitaController();
+  final DespesaController _despesaController = DespesaController();
+  final TipoController _tipoController = TipoController();
+  final PeriodoController _periodoController = PeriodoController();
+
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  // Eventos do calendário (datas com receitas/despesas)
-  Map<DateTime, List<Map<String, dynamic>>> eventos = {};
+  Map<DateTime, List<dynamic>> _eventos = {};
+  List<Receita> _todasReceitas = [];
+  List<Despesa> _todasDespesas = [];
+  Map<String, Tipo> _tiposCache = {};
+  Map<String, Periodo> _periodosCache = {};
 
   @override
   void initState() {
     super.initState();
-    _carregarEventos();
+    _selectedDay = _focusedDay;
+    _carregarDados();
   }
 
-  Future<void> _carregarEventos() async {
-    Map<DateTime, List<Map<String, dynamic>>> tempEventos = {};
+  void _carregarDados() {
+    // Escuta mudanças em receitas
+    _receitaController.listarReceitas().listen((receitas) {
+      setState(() => _todasReceitas = receitas);
+      _processarEventos();
+    });
 
-    // Buscar Receitas
-    final receitasSnapshot =
-        await FirebaseFirestore.instance.collection('receitas').get();
-    for (var doc in receitasSnapshot.docs) {
-      final data = (doc['data'] as Timestamp).toDate();
-      final dia = DateTime(data.year, data.month, data.day);
+    // Escuta mudanças em despesas
+    _despesaController.listarDespesas().listen((despesas) {
+      setState(() => _todasDespesas = despesas);
+      _processarEventos();
+    });
 
-      tempEventos[dia] ??= [];
-      tempEventos[dia]!.add({'tipo': 'receita', 'valor': doc['valor']});
-    }
+    // Carrega tipos para cache
+    _tipoController.listarTipos().listen((tipos) {
+      setState(() {
+        _tiposCache = {for (var t in tipos) t.id: t};
+      });
+    });
 
-    // Buscar Despesas
-    final despesasSnapshot =
-        await FirebaseFirestore.instance.collection('despesas').get();
-    for (var doc in despesasSnapshot.docs) {
-      final data = (doc['data'] as Timestamp).toDate();
-      final dia = DateTime(data.year, data.month, data.day);
-
-      tempEventos[dia] ??= [];
-      tempEventos[dia]!.add({'tipo': 'despesa', 'valor': doc['valor']});
-    }
-
-    setState(() {
-      eventos = tempEventos;
+    // Carrega períodos para cache
+    _periodoController.listarPeriodos().listen((periodos) {
+      setState(() {
+        _periodosCache = {for (var p in periodos) p.id: p};
+      });
+      _processarEventos();
     });
   }
 
-  List<Map<String, dynamic>> _getEventosDoDia(DateTime day) {
-    return eventos[DateTime(day.year, day.month, day.day)] ?? [];
+  void _processarEventos() {
+    Map<DateTime, List<dynamic>> tempEventos = {};
+
+    // Processar receitas
+    for (var receita in _todasReceitas) {
+      _adicionarEvento(tempEventos, receita.data, receita);
+
+      // Se tem período, adicionar recorrências
+      if (receita.periodoId != null) {
+        final periodo = _periodosCache[receita.periodoId];
+        if (periodo != null) {
+          final dataFinal = DateTime.now().add(const Duration(days: 365));
+          final datasRecorrentes =
+              periodo.gerarDatasRecorrentes(receita.data, dataFinal);
+          for (var data in datasRecorrentes) {
+            if (!isSameDay(data, receita.data)) {
+              _adicionarEvento(tempEventos, data, receita);
+            }
+          }
+        }
+      }
+    }
+
+    // Processar despesas
+    for (var despesa in _todasDespesas) {
+      _adicionarEvento(tempEventos, despesa.data, despesa);
+
+      // Se tem período, adicionar recorrências
+      if (despesa.periodoId != null) {
+        final periodo = _periodosCache[despesa.periodoId];
+        if (periodo != null) {
+          final dataFinal = DateTime.now().add(const Duration(days: 365));
+          final datasRecorrentes =
+              periodo.gerarDatasRecorrentes(despesa.data, dataFinal);
+          for (var data in datasRecorrentes) {
+            if (!isSameDay(data, despesa.data)) {
+              _adicionarEvento(tempEventos, data, despesa);
+            }
+          }
+        }
+      }
+    }
+
+    setState(() => _eventos = tempEventos);
   }
 
-  final List<Widget> _telas = [];
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Atualiza a lista de telas incluindo o calendário na Home
-    _telas.clear();
-    _telas.addAll([
-      _buildCalendario(), // Home com calendário
-      const ReceitasView(),
-      const DespesasView(),
-      const LembretesView(),
-      const PerfilView(),
-      const PesquisaView(),
-      const RelatorioView(),
-    ]);
+  void _adicionarEvento(Map<DateTime, List<dynamic>> eventos, DateTime data,
+      dynamic item) {
+    final dia = DateTime(data.year, data.month, data.day);
+    eventos[dia] ??= [];
+    eventos[dia]!.add(item);
   }
 
-  Widget _buildCalendario() {
-    return Column(
-      children: [
-        TableCalendar(
-          firstDay: DateTime.utc(2020, 1, 1),
-          lastDay: DateTime.utc(2030, 12, 31),
-          focusedDay: _focusedDay,
-          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-          onDaySelected: (selectedDay, focusedDay) {
-            setState(() {
-              _selectedDay = selectedDay;
-              _focusedDay = focusedDay;
-            });
-          },
-          eventLoader: _getEventosDoDia,
-          calendarStyle: const CalendarStyle(
-            todayDecoration: BoxDecoration(
-              color: Colors.deepPurple,
-              shape: BoxShape.circle,
-            ),
-          ),
+  List<dynamic> _getEventosDoDia(DateTime day) {
+    final dia = DateTime(day.year, day.month, day.day);
+    return _eventos[dia] ?? [];
+  }
+
+  void _editarItem(dynamic item) {
+    if (item is Receita) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReceitaFormView(receitaParaEditar: item),
         ),
-        const SizedBox(height: 16),
-        if (_selectedDay != null) ...[
-          Text(
-            "Eventos em ${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}:",
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          ..._getEventosDoDia(_selectedDay!).map((evento) {
-            return ListTile(
-              leading: Icon(
-                evento['tipo'] == 'receita'
-                    ? Icons.arrow_upward
-                    : Icons.arrow_downward,
-                color:
-                    evento['tipo'] == 'receita' ? Colors.blue : Colors.red,
-              ),
-              title: Text(
-                "${evento['tipo'].toString().toUpperCase()} - R\$ ${evento['valor']}",
-              ),
-            );
-          }),
-        ],
-      ],
-    );
-  }
-
-  void _selecionarPagina(int index) {
-    setState(() {
-      _paginaAtual = index;
-      Navigator.pop(context);
-    });
+      );
+    } else if (item is Despesa) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DespesaFormView(despesaParaEditar: item),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final eventosDoDia = _selectedDay != null
+        ? _getEventosDoDia(_selectedDay!)
+        : <dynamic>[];
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Gerenciador Financeiro')),
+      appBar: AppBar(
+        title: const Text('Gerenciador Financeiro'),
+      ),
       drawer: Drawer(
         child: ListView(
           children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.deepPurple),
-              child: Text('Menu',
-                  style: TextStyle(color: Colors.white, fontSize: 24)),
+            DrawerHeader(
+              decoration: const BoxDecoration(color: Colors.deepPurple),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  const Text(
+                    'Menu',
+                    style: TextStyle(color: Colors.white, fontSize: 24),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    FirebaseAuth.instance.currentUser?.email ?? '',
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ],
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.home),
               title: const Text('Home'),
-              onTap: () => _selecionarPagina(0),
+              onTap: () => Navigator.pop(context),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.attach_money, color: Colors.green),
+              title: const Text('Nova Receita'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ReceitaFormView()),
+                );
+              },
             ),
             ListTile(
-              leading: const Icon(Icons.attach_money),
-              title: const Text('Receitas'),
-              onTap: () => _selecionarPagina(1),
+              leading: const Icon(Icons.money_off, color: Colors.red),
+              title: const Text('Nova Despesa'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DespesaFormView()),
+                );
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.label),
+              title: const Text('Gerenciar Tipos'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TiposView()),
+                );
+              },
             ),
             ListTile(
-              leading: const Icon(Icons.money_off),
-              title: const Text('Despesas'),
-              onTap: () => _selecionarPagina(2),
+              leading: const Icon(Icons.repeat),
+              title: const Text('Gerenciar Períodos'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PeriodosView()),
+                );
+              },
             ),
+            const Divider(),
             ListTile(
               leading: const Icon(Icons.notifications),
               title: const Text('Lembretes'),
-              onTap: () => _selecionarPagina(3),
-            ),
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text('Perfil'),
-              onTap: () => _selecionarPagina(4),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LembretesView()),
+                );
+              },
             ),
             ListTile(
               leading: const Icon(Icons.search),
               title: const Text('Pesquisar'),
-              onTap: () => _selecionarPagina(5),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PesquisaView()),
+                );
+              },
             ),
             ListTile(
               leading: const Icon(Icons.insert_chart),
-              title: const Text('Relatório'),
-              onTap: () => _selecionarPagina(6),
+              title: const Text('Relatórios'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RelatorioView()),
+                );
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.person),
+              title: const Text('Perfil'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PerfilView()),
+                );
+              },
             ),
           ],
         ),
       ),
-      body: _telas[_paginaAtual],
+      body: Column(
+        children: [
+          // Calendário
+          TableCalendar(
+            firstDay: DateTime.utc(2020, 1, 1),
+            lastDay: DateTime.utc(2030, 12, 31),
+            focusedDay: _focusedDay,
+            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+            onDaySelected: (selectedDay, focusedDay) {
+              setState(() {
+                _selectedDay = selectedDay;
+                _focusedDay = focusedDay;
+              });
+            },
+            eventLoader: _getEventosDoDia,
+            calendarStyle: const CalendarStyle(
+              todayDecoration: BoxDecoration(
+                color: Colors.deepPurple,
+                shape: BoxShape.circle,
+              ),
+              selectedDecoration: BoxDecoration(
+                color: Colors.deepPurpleAccent,
+                shape: BoxShape.circle,
+              ),
+              markerDecoration: BoxDecoration(
+                color: Colors.blue,
+                shape: BoxShape.circle,
+              ),
+            ),
+            calendarBuilders: CalendarBuilders(
+              markerBuilder: (context, date, events) {
+                if (events.isEmpty) return const SizedBox();
+
+                final temReceita =
+                    events.any((e) => e is Receita);
+                final temDespesa =
+                    events.any((e) => e is Despesa);
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (temReceita)
+                      Container(
+                        width: 7,
+                        height: 7,
+                        margin: const EdgeInsets.symmetric(horizontal: 0.5),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    if (temDespesa)
+                      Container(
+                        width: 7,
+                        height: 7,
+                        margin: const EdgeInsets.symmetric(horizontal: 0.5),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const Divider(),
+
+          // Lista de eventos do dia
+          Expanded(
+            child: eventosDoDia.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Nenhum evento neste dia',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: eventosDoDia.length,
+                    itemBuilder: (context, index) {
+                      final item = eventosDoDia[index];
+                      final isReceita = item is Receita;
+                      final nome = isReceita
+                          ? (item as Receita).nome
+                          : (item as Despesa).nome;
+                      final valor = isReceita
+                          ? (item as Receita).valor
+                          : (item as Despesa).valor;
+                      final prioridade = isReceita
+                          ? (item as Receita).prioridade
+                          : (item as Despesa).prioridade;
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor:
+                                isReceita ? Colors.green : Colors.red,
+                            child: Icon(
+                              isReceita
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
+                              color: Colors.white,
+                            ),
+                          ),
+                          title: Text(nome),
+                          subtitle: Text(
+                            'R\$ ${valor.toStringAsFixed(2)} • Prioridade: $prioridade',
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.edit),
+                            onPressed: () => _editarItem(item),
+                          ),
+                          onTap: () => _editarItem(item),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

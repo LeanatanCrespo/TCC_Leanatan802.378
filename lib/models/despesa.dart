@@ -3,9 +3,10 @@ class Despesa {
   final String usuarioId;
   final String nome;
   final double valor;
-  final String? periodo;
-  final int? prioridade;
-  final String? tipo;
+  final int prioridade;
+  final DateTime data;
+  final List<String> tiposIds;
+  final String? periodoId;
   final DateTime dataCriacao;
 
   Despesa({
@@ -13,9 +14,10 @@ class Despesa {
     required this.usuarioId,
     required this.nome,
     required this.valor,
-    this.periodo,
-    this.prioridade,
-    this.tipo,
+    required this.prioridade,
+    required this.data,
+    required this.tiposIds,
+    this.periodoId,
     required this.dataCriacao,
   });
 
@@ -25,23 +27,49 @@ class Despesa {
       'usuarioId': usuarioId,
       'nome': nome,
       'valor': valor,
-      'periodo': periodo,
       'prioridade': prioridade,
-      'tipo': tipo,
+      'data': data.toIso8601String(),
+      'tiposIds': tiposIds,
+      'periodoId': periodoId,
       'dataCriacao': dataCriacao.toIso8601String(),
     };
   }
 
   factory Despesa.fromMap(Map<String, dynamic> map) {
     return Despesa(
-      id: map['id'],
-      usuarioId: map['usuarioId'],
-      nome: map['nome'],
+      id: map['id'] ?? '',
+      usuarioId: map['usuarioId'] ?? '',
+      nome: map['nome'] ?? '',
       valor: (map['valor'] as num).toDouble(),
-      periodo: map['periodo'],
-      prioridade: map['prioridade'],
-      tipo: map['tipo'],
+      prioridade: map['prioridade'] ?? 0,
+      data: DateTime.parse(map['data']),
+      tiposIds: List<String>.from(map['tiposIds'] ?? []),
+      periodoId: map['periodoId'],
       dataCriacao: DateTime.parse(map['dataCriacao']),
+    );
+  }
+
+  Despesa copyWith({
+    String? id,
+    String? usuarioId,
+    String? nome,
+    double? valor,
+    int? prioridade,
+    DateTime? data,
+    List<String>? tiposIds,
+    String? periodoId,
+    DateTime? dataCriacao,
+  }) {
+    return Despesa(
+      id: id ?? this.id,
+      usuarioId: usuarioId ?? this.usuarioId,
+      nome: nome ?? this.nome,
+      valor: valor ?? this.valor,
+      prioridade: prioridade ?? this.prioridade,
+      data: data ?? this.data,
+      tiposIds: tiposIds ?? this.tiposIds,
+      periodoId: periodoId ?? this.periodoId,
+      dataCriacao: dataCriacao ?? this.dataCriacao,
     );
   }
 }
