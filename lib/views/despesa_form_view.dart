@@ -10,7 +10,7 @@ import '../models/periodo.dart';
 class DespesaFormView extends StatefulWidget {
   final Despesa? despesaParaEditar;
 
-  const DespesaFormView({Key? key, this.despesaParaEditar}) : super(key: key);
+  const DespesaFormView({super.key, this.despesaParaEditar});
 
   @override
   State<DespesaFormView> createState() => _DespesaFormViewState();
@@ -357,7 +357,7 @@ class _DespesaFormViewState extends State<DespesaFormView> {
               )
             else
               DropdownButtonFormField<String>(
-                value: _periodoSelecionado,
+                initialValue: _periodoSelecionado,
                 decoration: const InputDecoration(
                   labelText: 'Selecione um período',
                   border: OutlineInputBorder(),
@@ -374,7 +374,7 @@ class _DespesaFormViewState extends State<DespesaFormView> {
                       value: periodo.id,
                       child: Text('${periodo.nome} - ${periodo.descricao}'),
                     );
-                  }).toList(),
+                  }),
                 ],
                 onChanged: (value) {
                   setState(() => _periodoSelecionado = value);

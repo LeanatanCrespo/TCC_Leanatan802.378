@@ -4,7 +4,7 @@ import 'cadastro_view.dart';
 import 'home_view.dart';
 
 class LoginView extends StatefulWidget {
-  const LoginView({Key? key}) : super(key: key);
+  const LoginView({super.key});
 
   @override
   State<LoginView> createState() => _LoginViewState();
@@ -30,6 +30,7 @@ class _LoginViewState extends State<LoginView> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Login realizado com sucesso!')),
           );
+          if (!mounted) return;
           // Redirecionar para a Home
           Navigator.pushReplacement(
             context,
@@ -40,6 +41,7 @@ class _LoginViewState extends State<LoginView> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString())),
         );
+        if (!mounted) return;
       } finally {
         setState(() => _carregando = false);
       }

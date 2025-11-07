@@ -4,7 +4,7 @@ import '../controllers/periodo_controller.dart';
 import '../models/periodo.dart';
 
 class PeriodosView extends StatefulWidget {
-  const PeriodosView({Key? key}) : super(key: key);
+  const PeriodosView({super.key});
 
   @override
   State<PeriodosView> createState() => _PeriodosViewState();
@@ -200,7 +200,7 @@ class _PeriodosViewState extends State<PeriodosView> {
                         Expanded(
                           flex: 3,
                           child: DropdownButtonFormField<String>(
-                            value: _unidadeSelecionada,
+                            initialValue: _unidadeSelecionada,
                             decoration: const InputDecoration(
                               labelText: 'Unidade',
                               border: OutlineInputBorder(),

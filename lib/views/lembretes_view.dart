@@ -8,7 +8,7 @@ import '../models/receita.dart';
 import '../models/despesa.dart';
 
 class LembretesView extends StatefulWidget {
-  const LembretesView({Key? key}) : super(key: key);
+  const LembretesView({super.key});
 
   @override
   State<LembretesView> createState() => _LembretesViewState();
@@ -21,7 +21,7 @@ class _LembretesViewState extends State<LembretesView> {
 
   List<Receita> _todasReceitas = [];
   List<Despesa> _todasDespesas = [];
-  Map<String, dynamic> _referenciasCache = {}; // Cache de receitas/despesas
+  final Map<String, dynamic> _referenciasCache = {}; // Cache de receitas/despesas
 
   @override
   void initState() {
@@ -258,7 +258,7 @@ class _LembretesViewState extends State<LembretesView> {
                       Switch(
                         value: lembrete.ativo,
                         onChanged: (_) => _toggleAtivo(lembrete),
-                        activeColor: Colors.green,
+                        activeThumbColor: Colors.green,
                       ),
                       PopupMenuButton<String>(
                         onSelected: (value) {
@@ -395,7 +395,7 @@ class _FormularioLembreteState extends State<_FormularioLembrete> {
 
             // Selecionar receita/despesa
             DropdownButtonFormField<String>(
-              value: _referenciaIdSelecionada,
+              initialValue: _referenciaIdSelecionada,
               decoration: InputDecoration(
                 labelText: 'Selecione ${_tipoReferenciaSelecionado == "receita" ? "uma receita" : "uma despesa"}',
                 border: const OutlineInputBorder(),

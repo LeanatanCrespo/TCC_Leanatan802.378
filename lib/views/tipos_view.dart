@@ -4,7 +4,7 @@ import '../controllers/tipo_controller.dart';
 import '../models/tipo.dart';
 
 class TiposView extends StatefulWidget {
-  const TiposView({Key? key}) : super(key: key);
+  const TiposView({super.key});
 
   @override
   State<TiposView> createState() => _TiposViewState();

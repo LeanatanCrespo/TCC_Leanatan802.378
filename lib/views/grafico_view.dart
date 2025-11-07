@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/relatorio.dart';
+import '../models/receita.dart';
+import '../models/despesa.dart';
 
 class GraficoView extends StatelessWidget {
   final Relatorio relatorio;
   final bool anual;
 
   const GraficoView({
-    Key? key,
+    super.key,
     required this.relatorio,
-    this.anual = false,
-  }) : super(key: key);
+    this.anual = false, required String tipoAgrupamento,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,12 +74,12 @@ class GraficoView extends StatelessWidget {
     Map<int, double> despesasMes = {};
 
     for (var r in relatorio.receitas) {
-      final mes = r.dataCriacao.month;
+      final mes = r.data.month;
       receitasMes[mes] = (receitasMes[mes] ?? 0) + r.valor;
     }
 
     for (var d in relatorio.despesas) {
-      final mes = d.dataCriacao.month;
+      final mes = d.data.month;
       despesasMes[mes] = (despesasMes[mes] ?? 0) + d.valor;
     }
 

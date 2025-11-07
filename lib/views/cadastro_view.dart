@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 
 class CadastroView extends StatefulWidget {
-  const CadastroView({Key? key}) : super(key: key);
+  const CadastroView({super.key});
 
   @override
   State<CadastroView> createState() => _CadastroViewState();
@@ -27,11 +27,13 @@ class _CadastroViewState extends State<CadastroView> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cadastro realizado com sucesso!')),
         );
+        if (!mounted) return;
         Navigator.pop(context);
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString())),
         );
+        if (!mounted) return;
       } finally {
         setState(() => _carregando = false);
       }

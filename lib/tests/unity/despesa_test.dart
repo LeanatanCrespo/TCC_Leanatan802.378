@@ -1,63 +1,104 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:tcc2025_leanatan/models/despesa.dart';
 
 void main() {
-  group('Despesa', () {
+  test('Criar Despesa', () {
     final despesa = Despesa(
-      id: 'd001',
-      usuarioId: 'u321',
+      id: '1',
+      usuarioId: 'user123',
       nome: 'Aluguel',
-      valor: 1500.00,
-      periodo: 'Mensal',
-      prioridade: 3,
-      tipo: 'Fixa',
-      dataCriacao: DateTime.parse('2024-06-01T10:00:00'),
+      valor: 1200.0,
+      prioridade: 5,
+      data: DateTime(2024, 1, 15),
+      tiposIds: ['tipo_moradia'],
+      periodoId: 'periodo_mensal',
+      dataCriacao: DateTime.now(),
     );
 
-    test('construtor e atributos', () {
-      expect(despesa.id, 'd001');
-      expect(despesa.usuarioId, 'u321');
-      expect(despesa.nome, 'Aluguel');
-      expect(despesa.valor, 1500.00);
-      expect(despesa.periodo, 'Mensal');
-      expect(despesa.prioridade, 'Alta');
-      expect(despesa.tipo, 'Fixa');
-      expect(despesa.dataCriacao, DateTime.parse('2024-06-01T10:00:00'));
-    });
+    expect(despesa.nome, equals('Aluguel'));
+    expect(despesa.valor, equals(1200.0));
+    expect(despesa.prioridade, equals(5));
+    expect(despesa.data.day, equals(15));
+    expect(despesa.tiposIds.length, equals(1));
+    expect(despesa.periodoId, equals('periodo_mensal'));
+  });
 
-    test('conversão para Map', () {
-      final map = despesa.toMap();
-      expect(map['id'], 'd001');
-      expect(map['usuarioId'], 'u321');
-      expect(map['nome'], 'Aluguel');
-      expect(map['valor'], 1500.00);
-      expect(map['periodo'], 'Mensal');
-      expect(map['prioridade'], 'Alta');
-      expect(map['tipo'], 'Fixa');
-      expect(map['dataCriacao'], '2024-06-01T10:00:00.000');
-    });
+  test('Converter Despesa para Map', () {
+    final despesa = Despesa(
+      id: '2',
+      usuarioId: 'user456',
+      nome: 'Supermercado',
+      valor: 500.0,
+      prioridade: 3,
+      data: DateTime(2024, 2, 10),
+      tiposIds: ['tipo_alimentacao'],
+      periodoId: null,
+      dataCriacao: DateTime.now(),
+    );
 
-    test('criação a partir de Map', () {
-      final map = {
-        'id': 'd002',
-        'usuarioId': 'u654',
-        'nome': 'Internet',
-        'valor': 120.75,
-        'periodo': 'Mensal',
-        'prioridade': 'Média',
-        'tipo': 'Fixa',
-        'dataCriacao': '2024-06-05T08:00:00.000',
-      };
+    final map = despesa.toMap();
 
-      final novaDespesa = Despesa.fromMap(map);
-      expect(novaDespesa.id, 'd002');
-      expect(novaDespesa.usuarioId, 'u654');
-      expect(novaDespesa.nome, 'Internet');
-      expect(novaDespesa.valor, 120.75);
-      expect(novaDespesa.periodo, 'Mensal');
-      expect(novaDespesa.prioridade, 'Média');
-      expect(novaDespesa.tipo, 'Fixa');
-      expect(novaDespesa.dataCriacao, DateTime.parse('2024-06-05T08:00:00.000'));
-    });
+    expect(map['nome'], equals('Supermercado'));
+    expect(map['valor'], equals(500.0));
+    expect(map['prioridade'], equals(3));
+    expect(map['tiposIds'], isA<List>());
+    expect(map['periodoId'], isNull);
+  });
+
+  test('Criar Despesa a partir de Map', () {
+    final map = {
+      'id': '3',
+      'usuarioId': 'user789',
+      'nome': 'Internet',
+      'valor': 100.0,
+      'prioridade': 2,
+      'data': DateTime(2024, 3, 5).toIso8601String(),
+      'tiposIds': ['tipo_servicos'],
+      'periodoId': 'periodo_mensal',
+      'dataCriacao': DateTime.now().toIso8601String(),
+    };
+
+    final despesa = Despesa.fromMap(map);
+
+    expect(despesa.nome, equals('Internet'));
+    expect(despesa.valor, equals(100.0));
+    expect(despesa.prioridade, equals(2));
+    expect(despesa.tiposIds.contains('tipo_servicos'), isTrue);
+    expect(despesa.periodoId, equals('periodo_mensal'));
+  });
+
+  test('Despesa sem período (opcional)', () {
+    final despesa = Despesa(
+      id: '4',
+      usuarioId: 'user111',
+      nome: 'Compra única',
+      valor: 50.0,
+      prioridade: 1,
+      data: DateTime(2024, 4, 20),
+      tiposIds: [],
+      periodoId: null,
+      dataCriacao: DateTime.now(),
+    );
+
+    expect(despesa.periodoId, isNull);
+    expect(despesa.tiposIds.isEmpty, isTrue);
+  });
+
+  test('Despesa com múltiplos tipos', () {
+    final despesa = Despesa(
+      id: '5',
+      usuarioId: 'user222',
+      nome: 'Viagem',
+      valor: 2000.0,
+      prioridade: 4,
+      data: DateTime(2024, 5, 15),
+      tiposIds: ['tipo_transporte', 'tipo_lazer', 'tipo_alimentacao'],
+      periodoId: null,
+      dataCriacao: DateTime.now(),
+    );
+
+    expect(despesa.tiposIds.length, equals(3));
+    expect(despesa.tiposIds.contains('tipo_transporte'), isTrue);
+    expect(despesa.tiposIds.contains('tipo_lazer'), isTrue);
   });
 }

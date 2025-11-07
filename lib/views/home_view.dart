@@ -20,7 +20,7 @@ import 'tipos_view.dart';
 import 'periodos_view.dart';
 
 class HomeView extends StatefulWidget {
-  const HomeView({Key? key}) : super(key: key);
+  const HomeView({super.key});
 
   @override
   State<HomeView> createState() => _HomeViewState();
@@ -381,13 +381,13 @@ class _HomeViewState extends State<HomeView> {
                       final item = eventosDoDia[index];
                       final isReceita = item is Receita;
                       final nome = isReceita
-                          ? (item as Receita).nome
+                          ? (item).nome
                           : (item as Despesa).nome;
                       final valor = isReceita
-                          ? (item as Receita).valor
+                          ? (item).valor
                           : (item as Despesa).valor;
                       final prioridade = isReceita
-                          ? (item as Receita).prioridade
+                          ? (item).prioridade
                           : (item as Despesa).prioridade;
 
                       return Card(

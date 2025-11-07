@@ -10,7 +10,7 @@ import '../models/periodo.dart';
 class ReceitaFormView extends StatefulWidget {
   final Receita? receitaParaEditar;
 
-  const ReceitaFormView({Key? key, this.receitaParaEditar}) : super(key: key);
+  const ReceitaFormView({super.key, this.receitaParaEditar});
 
   @override
   State<ReceitaFormView> createState() => _ReceitaFormViewState();
@@ -357,7 +357,7 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
               )
             else
               DropdownButtonFormField<String>(
-                value: _periodoSelecionado,
+                initialValue: _periodoSelecionado,
                 decoration: const InputDecoration(
                   labelText: 'Selecione um período',
                   border: OutlineInputBorder(),
@@ -374,7 +374,7 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
                       value: periodo.id,
                       child: Text('${periodo.nome} - ${periodo.descricao}'),
                     );
-                  }).toList(),
+                  }),
                 ],
                 onChanged: (value) {
                   setState(() => _periodoSelecionado = value);
