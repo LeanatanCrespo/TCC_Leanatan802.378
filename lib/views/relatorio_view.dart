@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../models/relatorio.dart';
 import '../services/relatorio_service.dart';
+import '../utils/pdf_helper.dart';
 import 'grafico_view.dart';
 
 class RelatorioView extends StatefulWidget {
@@ -18,12 +19,21 @@ class _RelatorioViewState extends State<RelatorioView> {
   final RelatorioService _service = RelatorioService();
   Relatorio? _relatorio;
   bool _isLoading = false;
-  String _tipoRelatorio = 'mensal'; // mensal, anual, personalizado
+  String _tipoRelatorio = 'mensal';
 
   final _anoController = TextEditingController();
   final _mesController = TextEditingController();
   DateTime? _dataInicio;
   DateTime? _dataFim;
+
+  @override
+  void initState() {
+    super.initState();
+    // Preencher com mês/ano atual
+    final agora = DateTime.now();
+    _mesController.text = agora.month.toString();
+    _anoController.text = agora.year.toString();
+  }
 
   @override
   void dispose() {
@@ -46,6 +56,7 @@ class _RelatorioViewState extends State<RelatorioView> {
           throw Exception('Mês e ano inválidos');
         }
 
+        debugPrint('📊 Gerando relatório mensal: $mes/$ano');
         relatorio = await _service.gerarRelatorioMensal(mes, ano);
       } else if (_tipoRelatorio == 'anual') {
         final ano = int.tryParse(_anoController.text.trim());
@@ -54,15 +65,18 @@ class _RelatorioViewState extends State<RelatorioView> {
           throw Exception('Ano inválido');
         }
 
+        debugPrint('📊 Gerando relatório anual: $ano');
         relatorio = await _service.gerarRelatorioAnual(ano);
       } else {
-        // Personalizado
         if (_dataInicio == null || _dataFim == null) {
           throw Exception('Selecione as datas de início e fim');
         }
 
+        debugPrint('📊 Gerando relatório personalizado: $_dataInicio - $_dataFim');
         relatorio = await _service.gerarRelatorioPorPeriodo(_dataInicio!, _dataFim!);
       }
+
+      debugPrint('✅ Relatório gerado: ${relatorio.receitas.length} receitas, ${relatorio.despesas.length} despesas');
 
       setState(() {
         _relatorio = relatorio;
@@ -72,7 +86,10 @@ class _RelatorioViewState extends State<RelatorioView> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e')),
+          SnackBar(
+            content: Text('❌ Erro: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -84,8 +101,11 @@ class _RelatorioViewState extends State<RelatorioView> {
       initialDate: _dataInicio ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
+      helpText: 'Selecione a data inicial',
+      cancelText: 'Cancelar',
+      confirmText: 'OK',
     );
-    if (data != null) {
+    if (data != null && mounted) {
       setState(() => _dataInicio = data);
     }
   }
@@ -96,8 +116,11 @@ class _RelatorioViewState extends State<RelatorioView> {
       initialDate: _dataFim ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
+      helpText: 'Selecione a data final',
+      cancelText: 'Cancelar',
+      confirmText: 'OK',
     );
-    if (data != null) {
+    if (data != null && mounted) {
       setState(() => _dataFim = data);
     }
   }
@@ -121,6 +144,7 @@ class _RelatorioViewState extends State<RelatorioView> {
     );
   }
 
+  // ✅ CORREÇÃO: Geração de PDF melhorada
   Future<void> _gerarPDF() async {
     if (_relatorio == null) return;
 
@@ -129,7 +153,6 @@ class _RelatorioViewState extends State<RelatorioView> {
     try {
       final pdf = pw.Document();
 
-      // Página do relatório
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
@@ -173,7 +196,7 @@ class _RelatorioViewState extends State<RelatorioView> {
               ),
               pw.SizedBox(height: 20),
 
-              // Resumo Financeiro
+              // Resumo
               pw.Container(
                 padding: const pw.EdgeInsets.all(10),
                 decoration: pw.BoxDecoration(
@@ -358,32 +381,49 @@ class _RelatorioViewState extends State<RelatorioView> {
         ),
       );
 
-      // Salvar PDF
-      final output = await getApplicationDocumentsDirectory();
-      final file = File(
-        '${output.path}/relatorio_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
-      await file.writeAsBytes(await pdf.save());
+      // ✅ CORREÇÃO: Salvar PDF com path_provider
+      try {
+        final Directory? directory = await getDownloadsDirectory() ?? 
+                                     await getApplicationDocumentsDirectory();
+        
+        if (directory == null) {
+          throw Exception('Não foi possível acessar o diretório de downloads');
+        }
 
-      setState(() => _isLoading = false);
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final fileName = 'relatorio_$timestamp.pdf';
+        final file = File('${directory.path}/$fileName');
+        
+        await file.writeAsBytes(await pdf.save());
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('PDF salvo em: ${file.path}'),
-            action: SnackBarAction(
-              label: 'OK',
-              onPressed: () {},
+        setState(() => _isLoading = false);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ PDF salvo com sucesso!\n📁 ${file.path}'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'OK',
+                textColor: Colors.white,
+                onPressed: () {},
+              ),
             ),
-            duration: const Duration(seconds: 5),
-          ),
-        );
+          );
+        }
+      } catch (e) {
+        throw Exception('Erro ao salvar PDF: $e');
       }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao gerar PDF: $e')),
+          SnackBar(
+            content: Text('❌ Erro ao gerar PDF: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }
@@ -400,9 +440,26 @@ class _RelatorioViewState extends State<RelatorioView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Relatórios'),
+        actions: [
+          if (_relatorio != null)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _gerarRelatorio,
+              tooltip: 'Atualizar relatório',
+            ),
+        ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Gerando relatório...'),
+                ],
+              ),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -422,7 +479,10 @@ class _RelatorioViewState extends State<RelatorioView> {
                     ],
                     selected: {_tipoRelatorio},
                     onSelectionChanged: (value) {
-                      setState(() => _tipoRelatorio = value.first);
+                      setState(() {
+                        _tipoRelatorio = value.first;
+                        _relatorio = null; // Limpar relatório anterior
+                      });
                     },
                   ),
                   const SizedBox(height: 20),
@@ -437,6 +497,7 @@ class _RelatorioViewState extends State<RelatorioView> {
                             decoration: const InputDecoration(
                               labelText: 'Mês (1-12)',
                               border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.calendar_month),
                             ),
                             keyboardType: TextInputType.number,
                           ),
@@ -448,6 +509,7 @@ class _RelatorioViewState extends State<RelatorioView> {
                             decoration: const InputDecoration(
                               labelText: 'Ano',
                               border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.calendar_today),
                             ),
                             keyboardType: TextInputType.number,
                           ),
@@ -460,6 +522,7 @@ class _RelatorioViewState extends State<RelatorioView> {
                       decoration: const InputDecoration(
                         labelText: 'Ano',
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.calendar_today),
                       ),
                       keyboardType: TextInputType.number,
                     ),
@@ -472,6 +535,9 @@ class _RelatorioViewState extends State<RelatorioView> {
                             ? 'Selecionar Data Início'
                             : 'Início: ${_formatarData(_dataInicio!)}',
                       ),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
@@ -481,6 +547,9 @@ class _RelatorioViewState extends State<RelatorioView> {
                         _dataFim == null
                             ? 'Selecionar Data Fim'
                             : 'Fim: ${_formatarData(_dataFim!)}',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
                       ),
                     ),
                   ],
@@ -495,6 +564,8 @@ class _RelatorioViewState extends State<RelatorioView> {
                       onPressed: _gerarRelatorio,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.all(16),
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
                       ),
                     ),
                   ),
@@ -622,77 +693,85 @@ class _RelatorioViewState extends State<RelatorioView> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Listas
-                    Text(
-                      'Receitas (${_relatorio!.receitas.length})',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                    // Listas expandidas
+                    ExpansionTile(
+                      title: Text(
+                        'Receitas (${_relatorio!.receitas.length})',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
+                      initiallyExpanded: _relatorio!.receitas.isNotEmpty,
+                      children: [
+                        if (_relatorio!.receitas.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text('Nenhuma receita no período'),
+                          )
+                        else
+                          ..._relatorio!.receitas.take(10).map((r) => ListTile(
+                                leading: const CircleAvatar(
+                                  backgroundColor: Colors.green,
+                                  child: Icon(Icons.arrow_upward, color: Colors.white),
+                                ),
+                                title: Text(r.nome),
+                                subtitle: Text(_formatarData(r.data)),
+                                trailing: Text(
+                                  'R\$ ${r.valor.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    color: Colors.green,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )),
+                        if (_relatorio!.receitas.length > 10)
+                          Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(
+                              '+ ${_relatorio!.receitas.length - 10} receitas...',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 8),
-                    if (_relatorio!.receitas.isEmpty)
-                      const Text('Nenhuma receita no período')
-                    else
-                      ..._relatorio!.receitas.take(10).map((r) => ListTile(
-                        leading: const CircleAvatar(
-                          backgroundColor: Colors.green,
-                          child: Icon(Icons.arrow_upward, color: Colors.white),
-                        ),
-                        title: Text(r.nome),
-                        subtitle: Text(_formatarData(r.data)),
-                        trailing: Text(
-                          'R\$ ${r.valor.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      )),
-                    if (_relatorio!.receitas.length > 10)
-                      Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Text(
-                          '+ ${_relatorio!.receitas.length - 10} receitas...',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ),
-                    const SizedBox(height: 16),
 
-                    Text(
-                      'Despesas (${_relatorio!.despesas.length})',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                    ExpansionTile(
+                      title: Text(
+                        'Despesas (${_relatorio!.despesas.length})',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_relatorio!.despesas.isEmpty)
-                      const Text('Nenhuma despesa no período')
-                    else
-                      ..._relatorio!.despesas.take(10).map((d) => ListTile(
-                        leading: const CircleAvatar(
-                          backgroundColor: Colors.red,
-                          child: Icon(Icons.arrow_downward, color: Colors.white),
-                        ),
-                        title: Text(d.nome),
-                        subtitle: Text(_formatarData(d.data)),
-                        trailing: Text(
-                          'R\$ ${d.valor.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
+                      initiallyExpanded: _relatorio!.despesas.isNotEmpty,
+                      children: [
+                        if (_relatorio!.despesas.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text('Nenhuma despesa no período'),
+                          )
+                        else
+                          ..._relatorio!.despesas.take(10).map((d) => ListTile(
+                                leading: const CircleAvatar(
+                                  backgroundColor: Colors.red,
+                                  child: Icon(Icons.arrow_downward, color: Colors.white),
+                                ),
+                                title: Text(d.nome),
+                                subtitle: Text(_formatarData(d.data)),
+                                trailing: Text(
+                                  'R\$ ${d.valor.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )),
+                        if (_relatorio!.despesas.length > 10)
+                          Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(
+                              '+ ${_relatorio!.despesas.length - 10} despesas...',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
                           ),
-                        ),
-                      )),
-                    if (_relatorio!.despesas.length > 10)
-                      Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Text(
-                          '+ ${_relatorio!.despesas.length - 10} despesas...',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ),
+                      ],
+                    ),
                   ],
                 ],
               ),

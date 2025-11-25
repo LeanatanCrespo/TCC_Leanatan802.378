@@ -13,7 +13,7 @@ import '../models/periodo.dart';
 import 'perfil_view.dart';
 import 'receita_form_view.dart';
 import 'despesa_form_view.dart';
-import 'lembretes_view.dart';
+import 'lembretes_view.dart'; // ✅ Import normal
 import 'pesquisa_view.dart';
 import 'relatorio_view.dart';
 import 'tipos_view.dart';
@@ -49,42 +49,44 @@ class _HomeViewState extends State<HomeView> {
   }
 
   void _carregarDados() {
-    // Escuta mudanças em receitas
     _receitaController.listarReceitas().listen((receitas) {
-      setState(() => _todasReceitas = receitas);
-      _processarEventos();
+      if (mounted) {
+        setState(() => _todasReceitas = receitas);
+        _processarEventos();
+      }
     });
 
-    // Escuta mudanças em despesas
     _despesaController.listarDespesas().listen((despesas) {
-      setState(() => _todasDespesas = despesas);
-      _processarEventos();
+      if (mounted) {
+        setState(() => _todasDespesas = despesas);
+        _processarEventos();
+      }
     });
 
-    // Carrega tipos para cache
     _tipoController.listarTipos().listen((tipos) {
-      setState(() {
-        _tiposCache = {for (var t in tipos) t.id: t};
-      });
+      if (mounted) {
+        setState(() {
+          _tiposCache = {for (var t in tipos) t.id: t};
+        });
+      }
     });
 
-    // Carrega períodos para cache
     _periodoController.listarPeriodos().listen((periodos) {
-      setState(() {
-        _periodosCache = {for (var p in periodos) p.id: p};
-      });
-      _processarEventos();
+      if (mounted) {
+        setState(() {
+          _periodosCache = {for (var p in periodos) p.id: p};
+        });
+        _processarEventos();
+      }
     });
   }
 
   void _processarEventos() {
     Map<DateTime, List<dynamic>> tempEventos = {};
 
-    // Processar receitas
     for (var receita in _todasReceitas) {
       _adicionarEvento(tempEventos, receita.data, receita);
 
-      // Se tem período, adicionar recorrências
       if (receita.periodoId != null) {
         final periodo = _periodosCache[receita.periodoId];
         if (periodo != null) {
@@ -100,11 +102,9 @@ class _HomeViewState extends State<HomeView> {
       }
     }
 
-    // Processar despesas
     for (var despesa in _todasDespesas) {
       _adicionarEvento(tempEventos, despesa.data, despesa);
 
-      // Se tem período, adicionar recorrências
       if (despesa.periodoId != null) {
         final periodo = _periodosCache[despesa.periodoId];
         if (periodo != null) {
@@ -243,7 +243,7 @@ class _HomeViewState extends State<HomeView> {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const LembretesView()),
+                  MaterialPageRoute(builder: (_) => const LembretesView()), // ✅ CORRIGIDO
                 );
               },
             ),
@@ -317,10 +317,8 @@ class _HomeViewState extends State<HomeView> {
               markerBuilder: (context, date, events) {
                 if (events.isEmpty) return const SizedBox();
 
-                final temReceita =
-                    events.any((e) => e is Receita);
-                final temDespesa =
-                    events.any((e) => e is Despesa);
+                final temReceita = events.any((e) => e is Receita);
+                final temDespesa = events.any((e) => e is Despesa);
 
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.center,

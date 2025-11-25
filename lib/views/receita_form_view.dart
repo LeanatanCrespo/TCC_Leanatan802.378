@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../controllers/receita_controller.dart';
 import '../controllers/tipo_controller.dart';
 import '../controllers/periodo_controller.dart';
 import '../models/receita.dart';
 import '../models/tipo.dart';
 import '../models/periodo.dart';
+import '../utils/validators.dart';
 
 class ReceitaFormView extends StatefulWidget {
   final Receita? receitaParaEditar;
@@ -39,11 +41,10 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
     super.initState();
     _carregarDados();
     
-    // Se está editando, preencher formulário
     if (widget.receitaParaEditar != null) {
       final receita = widget.receitaParaEditar!;
       _nomeController.text = receita.nome;
-      _valorController.text = receita.valor.toString();
+      _valorController.text = receita.valor.toStringAsFixed(2).replaceAll('.', ',');
       _prioridadeController.text = receita.prioridade.toString();
       _dataSelecionada = receita.data;
       _tiposSelecionados = List.from(receita.tiposIds);
@@ -52,14 +53,12 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
   }
 
   void _carregarDados() {
-    // Carregar tipos
     _tipoController.listarTipos().listen((tipos) {
-      setState(() => _todosOsTipos = tipos);
+      if (mounted) setState(() => _todosOsTipos = tipos);
     });
 
-    // Carregar períodos
     _periodoController.listarPeriodos().listen((periodos) {
-      setState(() => _todosOsPeriodos = periodos);
+      if (mounted) setState(() => _todosOsPeriodos = periodos);
     });
   }
 
@@ -78,9 +77,12 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
       locale: const Locale('pt', 'BR'),
+      helpText: 'Selecione a data da receita',
+      cancelText: 'Cancelar',
+      confirmText: 'Confirmar',
     );
 
-    if (data != null) {
+    if (data != null && mounted) {
       setState(() => _dataSelecionada = data);
     }
   }
@@ -98,17 +100,40 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
   Future<void> _salvarReceita() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // ✅ CRÍTICO: Validar usuário autenticado
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Usuário não autenticado. Faça login novamente.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      final valor = double.parse(_valorController.text.trim());
-      final prioridade = int.parse(_prioridadeController.text.trim());
+      // ✅ Usar helper para parsing seguro
+      final valor = Validators.parseValor(_valorController.text);
+      final prioridade = Validators.parseInt(_prioridadeController.text);
+
+      // ✅ Validação extra
+      if (valor <= 0) {
+        throw Exception('O valor deve ser maior que zero');
+      }
+      if (prioridade < 1 || prioridade > 10) {
+        throw Exception('A prioridade deve estar entre 1 e 10');
+      }
 
       if (widget.receitaParaEditar == null) {
         // Criar nova receita
         final receita = Receita(
           id: const Uuid().v4(),
-          usuarioId: '',
+          usuarioId: uid, // ✅ CORRIGIDO: uid real
           nome: _nomeController.text.trim(),
           valor: valor,
           prioridade: prioridade,
@@ -122,7 +147,11 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Receita criada com sucesso!')),
+            const SnackBar(
+              content: Text('✅ Receita criada com sucesso!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
           );
           Navigator.pop(context);
         }
@@ -141,15 +170,31 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Receita atualizada com sucesso!')),
+            const SnackBar(
+              content: Text('✅ Receita atualizada com sucesso!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
           );
           Navigator.pop(context);
         }
       }
+    } on FormatException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Formato inválido: ${e.message}'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e')),
+          SnackBar(
+            content: Text('❌ Erro: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -162,7 +207,9 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir Receita'),
-        content: const Text('Deseja excluir esta receita?'),
+        content: const Text(
+          'Tem certeza que deseja excluir esta receita?\n\nEsta ação não pode ser desfeita.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -178,20 +225,29 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
     );
 
     if (confirmar == true && widget.receitaParaEditar != null) {
+      setState(() => _isLoading = true);
       try {
         await _receitaController.deletarReceita(widget.receitaParaEditar!.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Receita excluída com sucesso!')),
+            const SnackBar(
+              content: Text('✅ Receita excluída com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
           );
           Navigator.pop(context);
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erro ao excluir: $e')),
+            SnackBar(
+              content: Text('❌ Erro ao excluir: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
@@ -207,7 +263,8 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
           if (widget.receitaParaEditar != null)
             IconButton(
               icon: const Icon(Icons.delete),
-              onPressed: _confirmarExclusao,
+              onPressed: _isLoading ? null : _confirmarExclusao,
+              tooltip: 'Excluir receita',
             ),
         ],
       ),
@@ -225,12 +282,13 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.title),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Digite o nome da receita';
-                }
-                return null;
-              },
+              textCapitalization: TextCapitalization.sentences,
+              enabled: !_isLoading,
+              validator: (value) => Validators.validarTextoObrigatorio(
+                value,
+                mensagem: 'Digite o nome da receita',
+                minLength: 3,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -242,22 +300,18 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
                     controller: _valorController,
                     decoration: const InputDecoration(
                       labelText: 'Valor *',
-                      hintText: '0.00',
+                      hintText: '0,00',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.attach_money),
                       prefixText: 'R\$ ',
+                      helperText: 'Use vírgula ou ponto',
                     ),
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Digite o valor';
-                      }
-                      final valor = double.tryParse(value.trim());
-                      if (valor == null || valor < 0) {
-                        return 'Valor inválido';
-                      }
-                      return null;
-                    },
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    enabled: !_isLoading,
+                    validator: (value) => Validators.validarValor(
+                      value,
+                      minValue: 0.01,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -269,18 +323,11 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
                       hintText: '1-10',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.priority_high),
+                      helperText: '1=baixa, 10=alta',
                     ),
                     keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Digite a prioridade';
-                      }
-                      final prioridade = int.tryParse(value.trim());
-                      if (prioridade == null || prioridade < 1) {
-                        return 'Mínimo 1';
-                      }
-                      return null;
-                    },
+                    enabled: !_isLoading,
+                    validator: Validators.validarPrioridade,
                   ),
                 ),
               ],
@@ -290,21 +337,24 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
             // Data
             Card(
               child: ListTile(
-                leading: const Icon(Icons.calendar_today),
+                leading: const Icon(Icons.calendar_today, color: Colors.green),
                 title: const Text('Data da Receita'),
                 subtitle: Text(
                   '${_dataSelecionada.day.toString().padLeft(2, '0')}/'
                   '${_dataSelecionada.month.toString().padLeft(2, '0')}/'
                   '${_dataSelecionada.year}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
                 trailing: const Icon(Icons.edit),
-                onTap: _selecionarData,
+                onTap: _isLoading ? null : _selecionarData,
               ),
             ),
             const SizedBox(height: 16),
 
-            // Tipos (Multi-seleção)
+            // Tipos
             const Text(
               'Tipos/Tags (opcional)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -314,10 +364,20 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(
-                    'Nenhum tipo cadastrado.\nCrie tipos em "Gerenciar Tipos".',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600]),
+                  child: Column(
+                    children: [
+                      Icon(Icons.label_off, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Nenhum tipo cadastrado',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Crie tipos em "Gerenciar Tipos"',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                      ),
+                    ],
                   ),
                 ),
               )
@@ -330,7 +390,7 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
                   return FilterChip(
                     label: Text(tipo.nome),
                     selected: selecionado,
-                    onSelected: (_) => _toggleTipo(tipo.id),
+                    onSelected: _isLoading ? null : (_) => _toggleTipo(tipo.id),
                     selectedColor: Colors.green[100],
                     checkmarkColor: Colors.green[800],
                   );
@@ -338,7 +398,7 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
               ),
             const SizedBox(height: 16),
 
-            // Período (Opcional)
+            // Período
             const Text(
               'Recorrência (opcional)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -348,16 +408,26 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(
-                    'Nenhum período cadastrado.\nCrie períodos em "Gerenciar Períodos".',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600]),
+                  child: Column(
+                    children: [
+                      Icon(Icons.repeat_outlined, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Nenhum período cadastrado',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Crie períodos em "Gerenciar Períodos"',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                      ),
+                    ],
                   ),
                 ),
               )
             else
               DropdownButtonFormField<String>(
-                initialValue: _periodoSelecionado,
+                value: _periodoSelecionado,
                 decoration: const InputDecoration(
                   labelText: 'Selecione um período',
                   border: OutlineInputBorder(),
@@ -376,17 +446,28 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
                     );
                   }),
                 ],
-                onChanged: (value) {
-                  setState(() => _periodoSelecionado = value);
-                },
+                onChanged: _isLoading
+                    ? null
+                    : (value) {
+                        setState(() => _periodoSelecionado = value);
+                      },
               ),
             const SizedBox(height: 24),
 
             // Botão Salvar
             ElevatedButton.icon(
-              icon: Icon(widget.receitaParaEditar == null
-                  ? Icons.add
-                  : Icons.save),
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Icon(widget.receitaParaEditar == null
+                      ? Icons.add
+                      : Icons.save),
               label: Text(
                 widget.receitaParaEditar == null
                     ? 'Criar Receita'
@@ -400,6 +481,34 @@ class _ReceitaFormViewState extends State<ReceitaFormView> {
               ),
               onPressed: _isLoading ? null : _salvarReceita,
             ),
+
+            // Info de ajuda
+            if (!_isLoading) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Dica: Você pode usar vírgula ou ponto no valor',
+                        style: TextStyle(
+                          color: Colors.blue[900],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

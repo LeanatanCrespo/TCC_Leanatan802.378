@@ -1,13 +1,19 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Lembrete {
   final String id;
   final String usuarioId;
-  final String referenciaId; // ID da receita ou despesa
-  final String tipoReferencia; // 'receita' ou 'despesa'
-  final int diasAntes; // Quantos dias antes notificar
-  final bool notificarNoDia; // Se notifica no dia também
-  final bool ativo; // Se o lembrete está ativo
-  final bool concluido; // Se foi marcado como concluído
+  final String referenciaId;
+  final String tipoReferencia;
+  final int diasAntes;
+  final bool notificarNoDia;
+  final bool ativo;
+  final bool concluido;
   final DateTime dataCriacao;
+  
+  // ✅ NOVO: Horário da notificação
+  final int horario; // Hora do dia (0-23)
+  final int minuto; // Minuto (0-59)
 
   Lembrete({
     required this.id,
@@ -19,14 +25,40 @@ class Lembrete {
     required this.ativo,
     required this.concluido,
     required this.dataCriacao,
+    this.horario = 9, // Padrão: 9h da manhã
+    this.minuto = 0, // Padrão: 00 minutos
   });
 
-  // Calcula quando o lembrete deve ser disparado
-  DateTime calcularDataNotificacao(DateTime dataReferencia) {
+  /// Calcula quando o lembrete deve ser disparado (com hora)
+  DateTime calcularDataHoraNotificacao(DateTime dataReferencia) {
+    DateTime dataNotificacao;
+    
     if (diasAntes == 0) {
-      return dataReferencia;
+      dataNotificacao = dataReferencia;
+    } else {
+      dataNotificacao = dataReferencia.subtract(Duration(days: diasAntes));
     }
-    return dataReferencia.subtract(Duration(days: diasAntes));
+
+    // ✅ Aplicar horário configurado
+    return DateTime(
+      dataNotificacao.year,
+      dataNotificacao.month,
+      dataNotificacao.day,
+      horario,
+      minuto,
+    );
+  }
+
+  /// Verifica se o lembrete deve ser disparado agora
+  bool deveDispararAgora(DateTime dataReferencia) {
+    if (!ativo || concluido) return false;
+
+    final dataHoraNotificacao = calcularDataHoraNotificacao(dataReferencia);
+    final agora = DateTime.now();
+
+    // Verifica se está dentro de uma janela de 5 minutos
+    final diferenca = agora.difference(dataHoraNotificacao).inMinutes.abs();
+    return diferenca <= 5;
   }
 
   Map<String, dynamic> toMap() {
@@ -40,6 +72,8 @@ class Lembrete {
       'ativo': ativo,
       'concluido': concluido,
       'dataCriacao': dataCriacao.toIso8601String(),
+      'horario': horario, // ✅ NOVO
+      'minuto': minuto, // ✅ NOVO
     };
   }
 
@@ -54,6 +88,8 @@ class Lembrete {
       ativo: map['ativo'] ?? true,
       concluido: map['concluido'] ?? false,
       dataCriacao: DateTime.parse(map['dataCriacao']),
+      horario: map['horario'] ?? 9, // ✅ NOVO com padrão
+      minuto: map['minuto'] ?? 0, // ✅ NOVO com padrão
     );
   }
 
@@ -67,6 +103,8 @@ class Lembrete {
     bool? ativo,
     bool? concluido,
     DateTime? dataCriacao,
+    int? horario,
+    int? minuto,
   }) {
     return Lembrete(
       id: id ?? this.id,
@@ -78,16 +116,20 @@ class Lembrete {
       ativo: ativo ?? this.ativo,
       concluido: concluido ?? this.concluido,
       dataCriacao: dataCriacao ?? this.dataCriacao,
+      horario: horario ?? this.horario,
+      minuto: minuto ?? this.minuto,
     );
   }
 
   String get descricao {
+    final horarioFormatado = '${horario.toString().padLeft(2, '0')}:${minuto.toString().padLeft(2, '0')}';
+    
     if (diasAntes == 0) {
-      return 'Notificar no dia';
+      return 'No dia às $horarioFormatado';
     } else if (diasAntes == 1) {
-      return 'Notificar 1 dia antes';
+      return '1 dia antes às $horarioFormatado';
     } else {
-      return 'Notificar $diasAntes dias antes';
+      return '$diasAntes dias antes às $horarioFormatado';
     }
   }
 }

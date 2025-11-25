@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../controllers/despesa_controller.dart';
 import '../controllers/tipo_controller.dart';
 import '../controllers/periodo_controller.dart';
@@ -39,7 +40,6 @@ class _DespesaFormViewState extends State<DespesaFormView> {
     super.initState();
     _carregarDados();
     
-    // Se está editando, preencher formulário
     if (widget.despesaParaEditar != null) {
       final despesa = widget.despesaParaEditar!;
       _nomeController.text = despesa.nome;
@@ -52,14 +52,12 @@ class _DespesaFormViewState extends State<DespesaFormView> {
   }
 
   void _carregarDados() {
-    // Carregar tipos
     _tipoController.listarTipos().listen((tipos) {
-      setState(() => _todosOsTipos = tipos);
+      if (mounted) setState(() => _todosOsTipos = tipos);
     });
 
-    // Carregar períodos
     _periodoController.listarPeriodos().listen((periodos) {
-      setState(() => _todosOsPeriodos = periodos);
+      if (mounted) setState(() => _todosOsPeriodos = periodos);
     });
   }
 
@@ -80,7 +78,7 @@ class _DespesaFormViewState extends State<DespesaFormView> {
       locale: const Locale('pt', 'BR'),
     );
 
-    if (data != null) {
+    if (data != null && mounted) {
       setState(() => _dataSelecionada = data);
     }
   }
@@ -98,17 +96,38 @@ class _DespesaFormViewState extends State<DespesaFormView> {
   Future<void> _salvarDespesa() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // ✅ CORREÇÃO: Validar usuário autenticado ANTES de processar
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Usuário não autenticado. Faça login novamente.')),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      final valor = double.parse(_valorController.text.trim());
+      // ✅ CORREÇÃO: Substituir vírgula por ponto para parsing correto
+      final valorText = _valorController.text.trim().replaceAll(',', '.');
+      final valor = double.parse(valorText);
       final prioridade = int.parse(_prioridadeController.text.trim());
+
+      // ✅ VALIDAÇÃO EXTRA: Garantir valores válidos
+      if (valor <= 0) {
+        throw Exception('O valor deve ser maior que zero');
+      }
+      if (prioridade <= 0) {
+        throw Exception('A prioridade deve ser maior que zero');
+      }
 
       if (widget.despesaParaEditar == null) {
         // Criar nova despesa
         final despesa = Despesa(
           id: const Uuid().v4(),
-          usuarioId: '',
+          usuarioId: uid, // ✅ CORREÇÃO: Usar uid real
           nome: _nomeController.text.trim(),
           valor: valor,
           prioridade: prioridade,
@@ -122,7 +141,10 @@ class _DespesaFormViewState extends State<DespesaFormView> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Despesa criada com sucesso!')),
+            const SnackBar(
+              content: Text('Despesa criada com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
           );
           Navigator.pop(context);
         }
@@ -141,15 +163,32 @@ class _DespesaFormViewState extends State<DespesaFormView> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Despesa atualizada com sucesso!')),
+            const SnackBar(
+              content: Text('Despesa atualizada com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
           );
           Navigator.pop(context);
         }
       }
-    } catch (e) {
+    } on FormatException catch (e) {
+      // ✅ MELHORIA: Tratamento específico para erro de formato
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e')),
+          SnackBar(
+            content: Text('Formato inválido: ${e.message}'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      // ✅ MELHORIA: Tratamento de erros melhorado
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao salvar despesa: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -162,7 +201,9 @@ class _DespesaFormViewState extends State<DespesaFormView> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir Despesa'),
-        content: const Text('Deseja excluir esta despesa?'),
+        content: const Text(
+          'Tem certeza que deseja excluir esta despesa?\n\nEsta ação não pode ser desfeita.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -178,20 +219,29 @@ class _DespesaFormViewState extends State<DespesaFormView> {
     );
 
     if (confirmar == true && widget.despesaParaEditar != null) {
+      setState(() => _isLoading = true);
       try {
         await _despesaController.deletarDespesa(widget.despesaParaEditar!.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Despesa excluída com sucesso!')),
+            const SnackBar(
+              content: Text('Despesa excluída com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
           );
           Navigator.pop(context);
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erro ao excluir: $e')),
+            SnackBar(
+              content: Text('Erro ao excluir: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
@@ -207,7 +257,8 @@ class _DespesaFormViewState extends State<DespesaFormView> {
           if (widget.despesaParaEditar != null)
             IconButton(
               icon: const Icon(Icons.delete),
-              onPressed: _confirmarExclusao,
+              onPressed: _isLoading ? null : _confirmarExclusao,
+              tooltip: 'Excluir despesa',
             ),
         ],
       ),
@@ -225,9 +276,13 @@ class _DespesaFormViewState extends State<DespesaFormView> {
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.title),
               ),
+              textCapitalization: TextCapitalization.sentences,
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Digite o nome da despesa';
+                }
+                if (value.trim().length < 3) {
+                  return 'Nome muito curto (mínimo 3 caracteres)';
                 }
                 return null;
               },
@@ -242,19 +297,25 @@ class _DespesaFormViewState extends State<DespesaFormView> {
                     controller: _valorController,
                     decoration: const InputDecoration(
                       labelText: 'Valor *',
-                      hintText: '0.00',
+                      hintText: '0,00',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.attach_money),
                       prefixText: 'R\$ ',
+                      helperText: 'Use vírgula ou ponto',
                     ),
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Digite o valor';
                       }
-                      final valor = double.tryParse(value.trim());
-                      if (valor == null || valor < 0) {
+                      // ✅ MELHORIA: Aceitar vírgula e ponto
+                      final valorText = value.trim().replaceAll(',', '.');
+                      final valor = double.tryParse(valorText);
+                      if (valor == null) {
                         return 'Valor inválido';
+                      }
+                      if (valor <= 0) {
+                        return 'Valor deve ser maior que zero';
                       }
                       return null;
                     },
@@ -269,6 +330,7 @@ class _DespesaFormViewState extends State<DespesaFormView> {
                       hintText: '1-10',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.priority_high),
+                      helperText: '1 = baixa, 10 = alta',
                     ),
                     keyboardType: TextInputType.number,
                     validator: (value) {
@@ -276,8 +338,11 @@ class _DespesaFormViewState extends State<DespesaFormView> {
                         return 'Digite a prioridade';
                       }
                       final prioridade = int.tryParse(value.trim());
-                      if (prioridade == null || prioridade < 1) {
-                        return 'Mínimo 1';
+                      if (prioridade == null) {
+                        return 'Número inválido';
+                      }
+                      if (prioridade < 1 || prioridade > 10) {
+                        return 'Entre 1 e 10';
                       }
                       return null;
                     },
@@ -299,12 +364,12 @@ class _DespesaFormViewState extends State<DespesaFormView> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 trailing: const Icon(Icons.edit),
-                onTap: _selecionarData,
+                onTap: _isLoading ? null : _selecionarData,
               ),
             ),
             const SizedBox(height: 16),
 
-            // Tipos (Multi-seleção)
+            // Tipos
             const Text(
               'Tipos/Tags (opcional)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -314,10 +379,20 @@ class _DespesaFormViewState extends State<DespesaFormView> {
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(
-                    'Nenhum tipo cadastrado.\nCrie tipos em "Gerenciar Tipos".',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600]),
+                  child: Column(
+                    children: [
+                      Icon(Icons.label_off, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Nenhum tipo cadastrado',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Crie tipos em "Gerenciar Tipos"',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                      ),
+                    ],
                   ),
                 ),
               )
@@ -330,7 +405,7 @@ class _DespesaFormViewState extends State<DespesaFormView> {
                   return FilterChip(
                     label: Text(tipo.nome),
                     selected: selecionado,
-                    onSelected: (_) => _toggleTipo(tipo.id),
+                    onSelected: _isLoading ? null : (_) => _toggleTipo(tipo.id),
                     selectedColor: Colors.red[100],
                     checkmarkColor: Colors.red[800],
                   );
@@ -338,7 +413,7 @@ class _DespesaFormViewState extends State<DespesaFormView> {
               ),
             const SizedBox(height: 16),
 
-            // Período (Opcional)
+            // Período
             const Text(
               'Recorrência (opcional)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -348,16 +423,26 @@ class _DespesaFormViewState extends State<DespesaFormView> {
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(
-                    'Nenhum período cadastrado.\nCrie períodos em "Gerenciar Períodos".',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600]),
+                  child: Column(
+                    children: [
+                      Icon(Icons.repeat_outlined, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Nenhum período cadastrado',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Crie períodos em "Gerenciar Períodos"',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                      ),
+                    ],
                   ),
                 ),
               )
             else
               DropdownButtonFormField<String>(
-                initialValue: _periodoSelecionado,
+                value: _periodoSelecionado,
                 decoration: const InputDecoration(
                   labelText: 'Selecione um período',
                   border: OutlineInputBorder(),
@@ -376,17 +461,28 @@ class _DespesaFormViewState extends State<DespesaFormView> {
                     );
                   }),
                 ],
-                onChanged: (value) {
-                  setState(() => _periodoSelecionado = value);
-                },
+                onChanged: _isLoading
+                    ? null
+                    : (value) {
+                        setState(() => _periodoSelecionado = value);
+                      },
               ),
             const SizedBox(height: 24),
 
             // Botão Salvar
             ElevatedButton.icon(
-              icon: Icon(widget.despesaParaEditar == null
-                  ? Icons.add
-                  : Icons.save),
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Icon(widget.despesaParaEditar == null
+                      ? Icons.add
+                      : Icons.save),
               label: Text(
                 widget.despesaParaEditar == null
                     ? 'Criar Despesa'

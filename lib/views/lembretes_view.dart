@@ -21,7 +21,7 @@ class _LembretesViewState extends State<LembretesView> {
 
   List<Receita> _todasReceitas = [];
   List<Despesa> _todasDespesas = [];
-  final Map<String, dynamic> _referenciasCache = {}; // Cache de receitas/despesas
+  final Map<String, dynamic> _referenciasCache = {};
 
   @override
   void initState() {
@@ -30,24 +30,26 @@ class _LembretesViewState extends State<LembretesView> {
   }
 
   void _carregarReferencias() {
-    // Carregar receitas
     _receitaController.listarReceitas().listen((receitas) {
-      setState(() {
-        _todasReceitas = receitas;
-        for (var r in receitas) {
-          _referenciasCache[r.id] = {'tipo': 'receita', 'item': r};
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _todasReceitas = receitas;
+          for (var r in receitas) {
+            _referenciasCache[r.id] = {'tipo': 'receita', 'item': r};
+          }
+        });
+      }
     });
 
-    // Carregar despesas
     _despesaController.listarDespesas().listen((despesas) {
-      setState(() {
-        _todasDespesas = despesas;
-        for (var d in despesas) {
-          _referenciasCache[d.id] = {'tipo': 'despesa', 'item': d};
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _todasDespesas = despesas;
+          for (var d in despesas) {
+            _referenciasCache[d.id] = {'tipo': 'despesa', 'item': d};
+          }
+        });
+      }
     });
   }
 
@@ -65,14 +67,20 @@ class _LembretesViewState extends State<LembretesView> {
               await _lembreteController.adicionarLembrete(lembrete);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Lembrete criado com sucesso!')),
+                  const SnackBar(
+                    content: Text('✅ Lembrete criado com sucesso!'),
+                    backgroundColor: Colors.green,
+                  ),
                 );
               }
             } else {
               await _lembreteController.atualizarLembrete(lembrete);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Lembrete atualizado!')),
+                  const SnackBar(
+                    content: Text('✅ Lembrete atualizado!'),
+                    backgroundColor: Colors.green,
+                  ),
                 );
               }
             }
@@ -80,7 +88,10 @@ class _LembretesViewState extends State<LembretesView> {
           } catch (e) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Erro: $e')),
+                SnackBar(
+                  content: Text('❌ Erro: $e'),
+                  backgroundColor: Colors.red,
+                ),
               );
             }
           }
@@ -140,7 +151,10 @@ class _LembretesViewState extends State<LembretesView> {
         await _lembreteController.deletarLembrete(lembrete.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Lembrete excluído!')),
+            const SnackBar(
+              content: Text('✅ Lembrete excluído!'),
+              backgroundColor: Colors.green,
+            ),
           );
         }
       } catch (e) {
@@ -315,7 +329,7 @@ class _LembretesViewState extends State<LembretesView> {
   }
 }
 
-// Formulário em BottomSheet
+// ✅ Formulário de Lembrete com Horário
 class _FormularioLembrete extends StatefulWidget {
   final Lembrete? lembreteParaEditar;
   final List<Receita> todasReceitas;
@@ -339,6 +353,8 @@ class _FormularioLembreteState extends State<_FormularioLembrete> {
   String _tipoReferenciaSelecionado = 'receita';
   int _diasAntes = 1;
   bool _notificarNoDia = true;
+  int _horario = 9;
+  int _minuto = 0;
 
   @override
   void initState() {
@@ -349,6 +365,31 @@ class _FormularioLembreteState extends State<_FormularioLembrete> {
       _tipoReferenciaSelecionado = lembrete.tipoReferencia;
       _diasAntes = lembrete.diasAntes;
       _notificarNoDia = lembrete.notificarNoDia;
+      _horario = lembrete.horario;
+      _minuto = lembrete.minuto;
+    }
+  }
+
+  Future<void> _selecionarHorario() async {
+    final TimeOfDay? horarioSelecionado = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _horario, minute: _minuto),
+      helpText: 'Selecione o horário',
+      cancelText: 'Cancelar',
+      confirmText: 'OK',
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
+    );
+
+    if (horarioSelecionado != null) {
+      setState(() {
+        _horario = horarioSelecionado.hour;
+        _minuto = horarioSelecionado.minute;
+      });
     }
   }
 
@@ -367,109 +408,163 @@ class _FormularioLembreteState extends State<_FormularioLembrete> {
       ),
       child: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.lembreteParaEditar == null ? 'Novo Lembrete' : 'Editar Lembrete',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            
-            // Tipo de referência
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'receita', label: Text('Receita'), icon: Icon(Icons.arrow_upward)),
-                ButtonSegment(value: 'despesa', label: Text('Despesa'), icon: Icon(Icons.arrow_downward)),
-              ],
-              selected: {_tipoReferenciaSelecionado},
-              onSelectionChanged: (value) {
-                setState(() {
-                  _tipoReferenciaSelecionado = value.first;
-                  _referenciaIdSelecionada = null;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Selecionar receita/despesa
-            DropdownButtonFormField<String>(
-              initialValue: _referenciaIdSelecionada,
-              decoration: InputDecoration(
-                labelText: 'Selecione ${_tipoReferenciaSelecionado == "receita" ? "uma receita" : "uma despesa"}',
-                border: const OutlineInputBorder(),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.lembreteParaEditar == null ? 'Novo Lembrete' : 'Editar Lembrete',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              items: itensDisponiveis.map((item) {
-                final id = _tipoReferenciaSelecionado == 'receita'
-                    ? (item as Receita).id
-                    : (item as Despesa).id;
-                final nome = _tipoReferenciaSelecionado == 'receita'
-                    ? (item as Receita).nome
-                    : (item as Despesa).nome;
-                return DropdownMenuItem(value: id, child: Text(nome));
-              }).toList(),
-              onChanged: (value) {
-                setState(() => _referenciaIdSelecionada = value);
-              },
-              validator: (value) => value == null ? 'Selecione um item' : null,
-            ),
-            const SizedBox(height: 16),
-
-            // Dias antes
-            TextFormField(
-              initialValue: _diasAntes.toString(),
-              decoration: const InputDecoration(
-                labelText: 'Notificar quantos dias antes?',
-                border: OutlineInputBorder(),
-                helperText: '0 = notificar apenas no dia',
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (value) {
-                final dias = int.tryParse(value);
-                if (dias != null) _diasAntes = dias;
-              },
-              validator: (value) {
-                final dias = int.tryParse(value ?? '');
-                if (dias == null || dias < 0) return 'Digite um número válido';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Notificar no dia
-            SwitchListTile(
-              title: const Text('Notificar também no dia'),
-              value: _notificarNoDia,
-              onChanged: (value) => setState(() => _notificarNoDia = value),
-            ),
-            const SizedBox(height: 16),
-
-            // Botão salvar
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.save),
-                label: const Text('Salvar Lembrete'),
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    final lembrete = Lembrete(
-                      id: widget.lembreteParaEditar?.id ?? const Uuid().v4(),
-                      usuarioId: widget.lembreteParaEditar?.usuarioId ?? '',
-                      referenciaId: _referenciaIdSelecionada!,
-                      tipoReferencia: _tipoReferenciaSelecionado,
-                      diasAntes: _diasAntes,
-                      notificarNoDia: _notificarNoDia,
-                      ativo: widget.lembreteParaEditar?.ativo ?? true,
-                      concluido: widget.lembreteParaEditar?.concluido ?? false,
-                      dataCriacao: widget.lembreteParaEditar?.dataCriacao ?? DateTime.now(),
-                    );
-                    widget.onSalvar(lembrete);
-                  }
+              const SizedBox(height: 16),
+              
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'receita',
+                    label: Text('Receita'),
+                    icon: Icon(Icons.arrow_upward),
+                  ),
+                  ButtonSegment(
+                    value: 'despesa',
+                    label: Text('Despesa'),
+                    icon: Icon(Icons.arrow_downward),
+                  ),
+                ],
+                selected: {_tipoReferenciaSelecionado},
+                onSelectionChanged: (value) {
+                  setState(() {
+                    _tipoReferenciaSelecionado = value.first;
+                    _referenciaIdSelecionada = null;
+                  });
                 },
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+
+              DropdownButtonFormField<String>(
+                value: _referenciaIdSelecionada,
+                decoration: InputDecoration(
+                  labelText: 'Selecione ${_tipoReferenciaSelecionado == "receita" ? "uma receita" : "uma despesa"}',
+                  border: const OutlineInputBorder(),
+                ),
+                items: itensDisponiveis.map((item) {
+                  final id = _tipoReferenciaSelecionado == 'receita'
+                      ? (item as Receita).id
+                      : (item as Despesa).id;
+                  final nome = _tipoReferenciaSelecionado == 'receita'
+                      ? (item as Receita).nome
+                      : (item as Despesa).nome;
+                  return DropdownMenuItem(value: id, child: Text(nome));
+                }).toList(),
+                onChanged: (value) {
+                  setState(() => _referenciaIdSelecionada = value);
+                },
+                validator: (value) => value == null ? 'Selecione um item' : null,
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                initialValue: _diasAntes.toString(),
+                decoration: const InputDecoration(
+                  labelText: 'Notificar quantos dias antes?',
+                  border: OutlineInputBorder(),
+                  helperText: '0 = notificar apenas no dia',
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  final dias = int.tryParse(value);
+                  if (dias != null) _diasAntes = dias;
+                },
+                validator: (value) {
+                  final dias = int.tryParse(value ?? '');
+                  if (dias == null || dias < 0) return 'Digite um número válido';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.access_time, color: Colors.blue),
+                  title: const Text('Horário da notificação'),
+                  subtitle: Text(
+                    '${_horario.toString().padLeft(2, '0')}:${_minuto.toString().padLeft(2, '0')}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.edit),
+                  onTap: _selecionarHorario,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              SwitchListTile(
+                title: const Text('Notificar também no dia'),
+                value: _notificarNoDia,
+                onChanged: (value) => setState(() => _notificarNoDia = value),
+              ),
+              const SizedBox(height: 8),
+
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _diasAntes == 0
+                            ? 'Será notificado no dia às ${_horario.toString().padLeft(2, '0')}:${_minuto.toString().padLeft(2, '0')}'
+                            : 'Será notificado $_diasAntes dia${_diasAntes > 1 ? 's' : ''} antes às ${_horario.toString().padLeft(2, '0')}:${_minuto.toString().padLeft(2, '0')}',
+                        style: TextStyle(
+                          color: Colors.blue[900],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.save),
+                  label: const Text('Salvar Lembrete'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      final lembrete = Lembrete(
+                        id: widget.lembreteParaEditar?.id ?? const Uuid().v4(),
+                        usuarioId: widget.lembreteParaEditar?.usuarioId ?? '',
+                        referenciaId: _referenciaIdSelecionada!,
+                        tipoReferencia: _tipoReferenciaSelecionado,
+                        diasAntes: _diasAntes,
+                        notificarNoDia: _notificarNoDia,
+                        ativo: widget.lembreteParaEditar?.ativo ?? true,
+                        concluido: widget.lembreteParaEditar?.concluido ?? false,
+                        dataCriacao: widget.lembreteParaEditar?.dataCriacao ?? DateTime.now(),
+                        horario: _horario,
+                        minuto: _minuto,
+                      );
+                      widget.onSalvar(lembrete);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
